@@ -1,62 +1,72 @@
-'use strict';
+"use strict";
 
-var fs = require('fs'),
-async = require('async'),
-path = require('path'),
-mkdirp = require('mkdirp');
+const fs = require('fs');
+const path = require('path');
 
-let settings = {
-  sourceFile: 'testText.txt',
-  sourceDir: 'locales/',
-  finalDir: '/onlyOne'
-}
+const isDirectory = sourceDir => fs.lstatSync(sourceDir).isDirectory()
 
-const findDirs = (directories, filterMethod, finalDir) => {
-  console.log('our directories', directories);
-  let testDirs = directories.filter(dirName => dirName.includes(finalDir));
-  if(!testDirs.length){
+const getDirectories = sourceDir => fs.readdirSync(sourceDir).map(name => {
+  return path.join(sourceDir, name)
+}).filter(isDirectory);
+
+const listAllDirs = (startDir) => {
+  const _listAllDirs = (directories, allDirs = []) => {
+    allDirs = allDirs.concat(directories);
     let remainingDirs = directories.filter(dir => fs.readdirSync(dir).length);
-    if(!remainingDirs.length){
-       return ['error', null];
+    if (remainingDirs.length) {
+      let curr = directories.map(getDirectories);
+      let reRun = [].concat.apply([], curr);
+      return _listAllDirs(reRun, allDirs);
+    } else {
+      return allDirs;
     }
-    let curr = directories.map(filterMethod);
-    let reRun = [].concat.apply([], curr);
-    return findDirs(reRun, filterMethod, finalDir);
-  } else {
-    return [null, testDirs];
   }
+  return _listAllDirs(getDirectories(startDir), [startDir]);
 }
-const generateSettings = (settings) => {
-  const { sourceFile, sourceDir, finalDir } = settings;
 
-  const isDirectory = sourceDir => fs.lstatSync(sourceDir).isDirectory()
+const findDirs = (startDir, targetDir, filterMethod = null) => {
+  filterMethod = filterMethod || ((_dir) => _dir.endsWith(targetDir));
+  return listAllDirs(startDir).filter(filterMethod);
+}
 
-  const getDirectories = sourceDir => fs.readdirSync(sourceDir).map(name => {
-    console.log('source and name', sourceDir, name);
-    return path.join(sourceDir, name)});
+const findDirWriteFile = (sourceFile, startPath, finalDir, finalFilename, filterMethod = null) => {
 
-  // console.log(getDirectories(sourceDir))
-
-  let x = getDirectories(sourceDir);
-  console.log(x);
-  console.log('results here', findDirs(x, getDirectories, finalDir));
-  let [ error, results ] = findDirs(x, getDirectories, finalDir);
-  if(error){
-    console.log('ERRROR');
-    return;
-  }
-  // y = x.map(getDirectories),
-  // z = [].concat.apply([], y).map(getDirectories);
-
-
-  // let testDir = x.filter(dirName => dirName.includes('/US'));
-  // if(!testDir.length){
-  //   let a = x.map(getDirectories)
-  // } 
-  // let hfDirs = [].concat.apply([], z).filter(dirName => dirName.includes('/US'))
+  let x = getDirectories(startPath);
+  let results = findDirs(startPath, finalDir, filterMethod);
 
   results.forEach(subDir => {
-    fs.writeFileSync(subDir+'/thisworked.txt', fs.readFileSync(sourceFile));
+    fs.writeFileSync(`${subDir}/${finalFilename}`, fs.readFileSync(sourceFile));
   })
 }
-module.exports = (() => generateSettings(settings))();
+
+const removeAllFiles = (startPath, fileName) => {
+  const allDirs = listAllDirs(startPath).filter(dir => {
+    return !dir.includes('.git');
+  });
+  allDirs.forEach(dir => {
+    fs.readdir(dir, (err, files) => {
+      if (err) {
+        throw new Error(err);
+      }
+      files.filter(file => {
+        const fileStats = fs.statSync(dir + '/' + file);
+        return fileStats.isFile();
+      }).forEach(file => {
+        if (file === fileName) {
+          fs.unlink(dir + '/' + fileName, error => {
+            if (error) {
+              throw new Error(error);
+            }
+          })
+        }
+      })
+    })
+  })
+}
+
+export {
+  listAllDirs,
+  findDirs,
+  findDirWriteFile,
+  removeAllFiles
+}
