@@ -1,7 +1,7 @@
 {
-  "name": "recursivewriter",
+  "name": "ohdir",
   "version": "1.0.0",
-  "description": "write files to specified nested directories",
+  "description": "Obscure directory techniques I use for projects with unique build methods / file writing",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
